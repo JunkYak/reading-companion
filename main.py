@@ -2,6 +2,11 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
+from langchain_google_genai import ChatGoogleGenerativeAI
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 #LOADING
 loader = PyPDFLoader("data/books/Good omens_Terry Pratchett & Neil Gaiman_liber3.pdf")
@@ -37,18 +42,54 @@ embedding = HuggingFaceEmbeddings(
 
 vector_store = FAISS.from_documents(chunks,embedding)
 
-query = "what happens in the begining of the book good omens"
+query = "what happens at the begining of the book good omens"
 results = vector_store.similarity_search(query,k=3)
 
 #VECTOR STORES TEST 
 
-print("\nQuery:", query)
+#print("\nQuery:", query)
 
-for i, doc in enumerate(results):
-    print(f"\nResult {i+1}")
-    print("Page:", doc.metadata["page"])
-    print(doc.page_content[:400])
+#for i, doc in enumerate(results):
+#    print(f"\nResult {i+1}")   
+#    print("Page:", doc.metadata.get("page"))
+#    print(doc.page_content[:400])
 
+#CHAT MODEL
+
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    google_api_key=os.getenv("GOOGLE_API_KEY"),
+    temperature=0.3
+)
+
+context = "\n\n".join([doc.page_content for doc in results])
+
+prompt = f"""
+You are a helpful reading companion.
+
+Use ONLY the provided book context to answer the question.
+
+If the answer is not present in the context, say you don't know.
+
+Context:
+{context}
+
+Question:
+{query}
+
+Answer:
+"""
+
+response = llm.invoke(prompt)
+
+if not response:
+    print("No relevant content found in the data")
+    exit()
+
+print("\n" + "="*60)
+print("ANSWER")
+print("="*60 + "\n")
+print(response.content)
 
 
 
