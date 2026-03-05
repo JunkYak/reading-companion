@@ -30,6 +30,12 @@ text_splitter = RecursiveCharacterTextSplitter(
 #CHUNKING
 chunks  = text_splitter.split_documents(documents)
 
+for i,chunk in enumerate(chunks):
+    chunk.metadata["chunk_id"] = i
+
+
+    
+
 #CHUNKING TEST
 #print("\nTotal chunks:", len(chunks))
 #print("\nSample chunk metadata:")
@@ -55,8 +61,8 @@ else:
     vector_store.save_local(INDEX_PATH)
 
 
-query = "what does 'pinging' mean "
-current_page = 193
+query = "I NEVER LAID A FINGER ON HIM.- who is him here and explain whats going on in the scene "
+current_page = 149
 
 page_window = 5
 
@@ -70,6 +76,27 @@ local_vector_store = FAISS.from_documents(candidate_chunks, embedding)
 
 
 results = local_vector_store.similarity_search(query,k=8)
+
+expanded_chunks = []
+
+for doc in results:
+    idx = doc.metadata["chunk_id"]
+
+    neighbor_ids = [idx-1, idx, idx+1]
+
+    for nid in neighbor_ids:
+        if 0 <= nid < len(chunks):
+            expanded_chunks.append(chunks[nid])
+
+
+seen = set()
+unique_chunks = []
+
+for doc in expanded_chunks:
+    cid = doc.metadata["chunk_id"]
+    if cid not in seen:
+        seen.add(cid)
+        unique_chunks.append(doc)
 
 
 
@@ -95,14 +122,14 @@ llm = ChatGoogleGenerativeAI(
     temperature=0.3
 )
 
-context = "\n\n".join([doc.page_content for doc in results])
+context = "\n\n".join([doc.page_content for doc in unique_chunks])
 
 prompt = f"""
 You are a helpful reading companion.
 
 Use the provided context from the book to answer the question.
 You may explain terms or references in simple language if needed,
-but your explanation must be grounded in the context.
+but your explanation must be grounded in the context.git 
 
 If the answer is not present in the context, say you don't know.
 
