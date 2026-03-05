@@ -1,170 +1,80 @@
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain_google_genai import ChatGoogleGenerativeAI
-from dotenv import load_dotenv
-import os
-INDEX_PATH = "vector_store/faiss_index"
-
-load_dotenv()
-
-#LOADING
-loader = PyPDFLoader("data/books/Good omens_Terry Pratchett & Neil Gaiman_liber3.pdf")
-
-documents = loader.load()
-
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size = 1000,
-    chunk_overlap = 200,
-    separators=["\n\n", "\n", " ", ""]
-
-)
-#LOADING TEST  
-#print("Number of pages :",len(documents))
-#print("\nSample metadata:")
-#print(documents[0].metadata)
-#print("\nSample content:")
-#print(documents[0].page_content[:500])
-
-#CHUNKING
-chunks  = text_splitter.split_documents(documents)
-
-for i,chunk in enumerate(chunks):
-    chunk.metadata["chunk_id"] = i
+from processing.document_processor import load_book, create_chunks
+from retrieval.vector_store import load_embedding_model, load_or_create_vector_store
+from retrieval.bm25_search import build_bm25_index
+from retrieval.hybrid_search import hybrid_search
+from llm.answer_generator import initialize_llm, build_context, generate_answer
 
 
-    
-
-#CHUNKING TEST
-#print("\nTotal chunks:", len(chunks))
-#print("\nSample chunk metadata:")
-#print(chunks[0].metadata)
-#print("\nSample chunk content:")
-#print(chunks[0].page_content[:500])
-
-#VECTOR STORES
-embedding = HuggingFaceEmbeddings(
-    model_name = "sentence-transformers/all-MiniLM-L6-v2"
-)
-
-if os.path.exists(INDEX_PATH):
-    print("Loading existing vector store...")
-    vector_store = FAISS.load_local(
-        INDEX_PATH,
-        embedding,
-        allow_dangerous_deserialization=True
-    )
-else:
-    print("Creating new vector store...")
-    vector_store = FAISS.from_documents(chunks, embedding)
-    vector_store.save_local(INDEX_PATH)
+# BOOK PATH
+BOOK_PATH = "data/books/Good omens_Terry Pratchett & Neil Gaiman_liber3.pdf"
 
 
+# USER INPUT (for now hardcoded)
 query = "I NEVER LAID A FINGER ON HIM.- who is him here and explain whats going on in the scene "
 current_page = 149
 
-page_window = 5
-
-candidate_chunks = [
-    chunk for chunk in chunks
-    if abs(chunk.metadata.get("page",0) - current_page) <= page_window
-]
-
-local_vector_store = FAISS.from_documents(candidate_chunks, embedding)
+print("query:", query)
+print("current_page:", current_page)
 
 
-
-results = local_vector_store.similarity_search(query,k=8)
-
-expanded_chunks = []
-
-for doc in results:
-    idx = doc.metadata["chunk_id"]
-
-    neighbor_ids = [idx-1, idx, idx+1]
-
-    for nid in neighbor_ids:
-        if 0 <= nid < len(chunks):
-            expanded_chunks.append(chunks[nid])
+# LOAD BOOK
+documents = load_book(BOOK_PATH)
 
 
-seen = set()
-unique_chunks = []
-
-for doc in expanded_chunks:
-    cid = doc.metadata["chunk_id"]
-    if cid not in seen:
-        seen.add(cid)
-        unique_chunks.append(doc)
+# CREATE CHUNKS
+chunks = create_chunks(documents)
 
 
-
-for doc in results:
-    print("\nPAGE:", doc.metadata["page"])
-    print(doc.page_content[:200])
+# BUILD BM25 INDEX
+bm25 = build_bm25_index(chunks)
 
 
-#VECTOR STORES TEST 
+# LOAD EMBEDDING MODEL
+embedding = load_embedding_model()
 
-#print("\nQuery:", query)
 
-#for i, doc in enumerate(results):
-#    print(f"\nResult {i+1}")   
-#    print("Page:", doc.metadata.get("page"))
-#    print(doc.page_content[:400])
+# LOAD OR CREATE VECTOR STORE
+vector_store = load_or_create_vector_store(chunks, embedding)
 
-#CHAT MODEL
 
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    google_api_key=os.getenv("GOOGLE_API_KEY"),
-    temperature=0.3
+# HYBRID SEARCH
+context_chunks, vector_results, bm25_results, top_bm25_indices = hybrid_search(
+    query,
+    current_page,
+    chunks,
+    embedding,
+    bm25
 )
 
-context = "\n\n".join([doc.page_content for doc in unique_chunks])
 
-prompt = f"""
-You are a helpful reading companion.
+# DEBUG PRINTS
+print("VECTOR RESULTS:")
+for doc in vector_results:
+    print(doc.metadata["page"])
 
-Use the provided context from the book to answer the question.
-You may explain terms or references in simple language if needed,
-but your explanation must be grounded in the context.git 
+print("BM25 RESULTS:")
+for doc in bm25_results:
+    print(doc.metadata["page"])
 
-If the answer is not present in the context, say you don't know.
 
-Context:
-{context}
+# BUILD CONTEXT
+context = build_context(context_chunks)
 
-Question:
-{query}
 
-Answer:
-"""
+# INITIALIZE LLM
+llm = initialize_llm()
 
-response = llm.invoke(prompt)
+
+# GENERATE ANSWER
+response = generate_answer(llm, query, context)
+
 
 if not response:
     print("No relevant content found in the data")
     exit()
 
+
 print("\n" + "="*60)
 print("ANSWER")
 print("="*60 + "\n")
 print(response.content)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
