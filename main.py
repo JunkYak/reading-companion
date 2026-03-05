@@ -5,6 +5,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
 import os
+INDEX_PATH = "vector_store/faiss_index"
 
 load_dotenv()
 
@@ -40,9 +41,19 @@ embedding = HuggingFaceEmbeddings(
     model_name = "sentence-transformers/all-MiniLM-L6-v2"
 )
 
-vector_store = FAISS.from_documents(chunks,embedding)
+if os.path.exists(INDEX_PATH):
+    print("Loading existing vector store...")
+    vector_store = FAISS.load_local(
+        INDEX_PATH,
+        embedding,
+        allow_dangerous_deserialization=True
+    )
+else:
+    print("Creating new vector store...")
+    vector_store = FAISS.from_documents(chunks, embedding)
+    vector_store.save_local(INDEX_PATH)
 
-query = "what happens at the begining of the book good omens"
+query = "Who is the author of this book?"
 results = vector_store.similarity_search(query,k=3)
 
 #VECTOR STORES TEST 
