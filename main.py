@@ -54,8 +54,29 @@ else:
     vector_store = FAISS.from_documents(chunks, embedding)
     vector_store.save_local(INDEX_PATH)
 
-query = "Who is the author of this book?"
-results = vector_store.similarity_search(query,k=3)
+
+query = "what does 'pinging' mean "
+current_page = 193
+
+page_window = 5
+
+candidate_chunks = [
+    chunk for chunk in chunks
+    if abs(chunk.metadata.get("page",0) - current_page) <= page_window
+]
+
+local_vector_store = FAISS.from_documents(candidate_chunks, embedding)
+
+
+
+results = local_vector_store.similarity_search(query,k=8)
+
+
+
+for doc in results:
+    print("\nPAGE:", doc.metadata["page"])
+    print(doc.page_content[:200])
+
 
 #VECTOR STORES TEST 
 
@@ -79,7 +100,9 @@ context = "\n\n".join([doc.page_content for doc in results])
 prompt = f"""
 You are a helpful reading companion.
 
-Use ONLY the provided book context to answer the question.
+Use the provided context from the book to answer the question.
+You may explain terms or references in simple language if needed,
+but your explanation must be grounded in the context.
 
 If the answer is not present in the context, say you don't know.
 
