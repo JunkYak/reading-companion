@@ -64,6 +64,17 @@ while True:
         embedding,
         bm25
     )
+    #Extarct and print page numbers the context was taken from 
+    pages =set()
+    for doc in context_chunks:
+        page = doc.metadata.get("page")
+        if page is not None:
+            pages.add(page)
+    
+    pages = sorted(pages)
+
+    print("\nRelevant pages:", ", ".join(map(str, pages)))
+
 
     context = build_context(context_chunks)
 
