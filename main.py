@@ -6,6 +6,7 @@ from llm.answer_generator import initialize_llm, build_context, generate_answer
 
 
 BOOK_PATH = "data/books/Good omens_Terry Pratchett & Neil Gaiman_liber3.pdf"
+page_window = 5
 
 
 print("\nLoading book...")
@@ -37,6 +38,10 @@ current_page = 1
 while True:
 
     print(f"\nCurrent Page: {current_page}")
+    start_page = max(1, current_page - page_window)
+    end_page = current_page + page_window
+    print(f"Context window: {start_page}–{end_page}")
+     
 
     user_input = input(
         "\nAsk a question | type 'page <number>' | type 'exit'\n> "
