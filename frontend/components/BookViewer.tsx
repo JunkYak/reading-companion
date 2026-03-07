@@ -6,44 +6,64 @@ import { api } from "@/lib/api";
 
 interface BookViewerProps {
     onOpenChat: () => void;
+    onSendMessage: (message: string, selectedText?: string, page?: number) => void;
 }
 
-export function BookViewer({ onOpenChat }: BookViewerProps) {
+export function BookViewer({ onOpenChat, onSendMessage }: BookViewerProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [currentPage, setCurrentPage] = useState(1);
-    const [pages] = useState(Array.from({ length: 15 }, (_, i) => ({
-        pageNumber: i + 1,
-        content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n\nSed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.",
-    })));
+    const [pages, setPages] = useState<any[]>([]);
 
-    const handleAction = async (action: "explain" | "ask" | "summarize", text: string) => {
+    useEffect(() => {
+        const loadPages = async () => {
+            try {
+                const data = await api.getPages();
+                setPages(data.pages);
+            } catch (err) {
+                console.error("Failed to load pages", err);
+            }
+        };
+
+        loadPages();
+    }, []);
+
+    const handleAction = (action: "explain" | "ask" | "summarize", text: string) => {
         onOpenChat();
-        // Pre-fill the chat or automatically send a message based on the action
-        // In a real implementation this would pass the context to the chat interface
-        let query = "";
-        if (action === "explain") query = `Please explain this text: "${text}"`;
-        if (action === "ask") query = `I have a question about this text: "${text}"`;
-        if (action === "summarize") query = `Please summarize this text: "${text}"`;
 
-        // Simulate sending the context to the backend
-        try {
-            await api.askQuestion(query, text, currentPage);
-        } catch (e) {
-            console.error(e);
+        let query = "";
+
+        if (action === "explain") {
+            query = `Explain this passage from the book:\n\n${text}`;
+        }
+
+        if (action === "ask") {
+            query = `Answer a question about this passage:\n\n${text}`;
+        }
+
+        if (action === "summarize") {
+            query = `Summarize this passage:\n\n${text}`;
+        }
+
+        if (onSendMessage) {
+            onSendMessage(query, text, currentPage);
         }
     };
 
     const handleScroll = () => {
         if (!containerRef.current) return;
 
-        // Simple logic to determine current page based on scroll position
-        const pageElements = containerRef.current.querySelectorAll('[data-page]');
+        const container = containerRef.current;
+        const containerRect = container.getBoundingClientRect();
+        const middle = containerRect.top + containerRect.height / 2;
+
+        const pageElements = container.querySelectorAll('[data-page]');
         let current = 1;
 
         pageElements.forEach((el) => {
             const rect = el.getBoundingClientRect();
-            if (rect.top <= window.innerHeight / 2 && rect.bottom >= window.innerHeight / 2) {
-                current = parseInt(el.getAttribute('data-page') || "1");
+
+            if (rect.top <= middle && rect.bottom >= middle) {
+                current = parseInt(el.getAttribute("data-page") || "1");
             }
         });
 

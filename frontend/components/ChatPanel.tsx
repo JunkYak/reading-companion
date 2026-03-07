@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import {
+    useState,
+    useRef,
+    useEffect,
+    forwardRef,
+    useImperativeHandle,
+} from "react";
+
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { Send, X } from "lucide-react";
@@ -10,7 +17,10 @@ interface Message {
     content: string;
 }
 
-export function ChatPanel({ onClose }: { onClose: () => void }) {
+export const ChatPanel = forwardRef(function ChatPanel(
+    { onClose }: { onClose: () => void },
+    ref
+) {
     const [messages, setMessages] = useState<Message[]>([
         {
             role: "ai",
@@ -28,28 +38,33 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    const handleSend = async () => {
-        if (!input.trim()) return;
+    // CORE MESSAGE PIPELINE
+    const sendMessage = async (
+        message: string,
+        selectedText?: string,
+        page?: number
+    ) => {
+        setMessages((prev) => [...prev, { role: "user", content: message }]);
 
-        const userMsg = input;
-        setInput("");
-
-        setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
         setLoading(true);
 
         try {
-            const response = await api.askQuestion(userMsg);
+            const response = await api.askQuestion(
+                message,
+                selectedText,
+                page
+            );
+
+            const aiReply =
+                response.answer || "Sorry, I couldn't find anything relevant.";
 
             setMessages((prev) => [
                 ...prev,
-                {
-                    role: "ai",
-                    content:
-                        response.answer || "Sorry, I couldn't understand that.",
-                },
+                { role: "ai", content: aiReply },
             ]);
         } catch (error) {
             console.error(error);
+
             setMessages((prev) => [
                 ...prev,
                 { role: "ai", content: "Failed to connect to backend." },
@@ -57,6 +72,20 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
         } finally {
             setLoading(false);
         }
+    };
+
+    // EXPOSE FUNCTION TO PARENT (ReaderLayout)
+    useImperativeHandle(ref, () => ({
+        sendMessage,
+    }));
+
+    const handleSend = async () => {
+        if (!input.trim()) return;
+
+        const userMsg = input.trim();
+        setInput("");
+
+        await sendMessage(userMsg);
     };
 
     return (
@@ -83,8 +112,8 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
                         <div
                             key={idx}
                             className={`flex flex-col max-w-[90%] text-sm ${msg.role === "user"
-                                ? "self-end items-end"
-                                : "self-start items-start"
+                                    ? "self-end items-end"
+                                    : "self-start items-start"
                                 }`}
                         >
                             <span className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider px-1">
@@ -93,8 +122,8 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 
                             <div
                                 className={`px-4 py-2.5 rounded-2xl break-words ${msg.role === "user"
-                                    ? "bg-primary text-primary-foreground rounded-br-sm"
-                                    : "bg-muted text-foreground rounded-bl-sm"
+                                        ? "bg-primary text-primary-foreground rounded-br-sm"
+                                        : "bg-muted text-foreground rounded-bl-sm"
                                     }`}
                             >
                                 {msg.content}
@@ -115,9 +144,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
                         </div>
                     )}
 
-                    {/* AUTOSCROLL ANCHOR */}
                     <div ref={bottomRef} />
-
                 </div>
             </div>
 
@@ -159,4 +186,4 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
             </div>
         </div>
     );
-}
+});

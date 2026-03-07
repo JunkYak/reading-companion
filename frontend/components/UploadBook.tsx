@@ -25,19 +25,19 @@ export function UploadBook({ onUploadSuccess }: UploadBookProps) {
 
     const handleUpload = async (fileToUpload: File) => {
         setLoading(true);
-        setStatus("Uploading...");
+        setStatus("Uploading book...");
 
         try {
+            // Send file to backend
+            await api.uploadBook(fileToUpload);
+
             setStatus("Processing book...");
-            await new Promise(resolve => setTimeout(resolve, 1000));
 
-            setStatus("Generating embeddings...");
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            setStatus("Preparing reader...");
+            // small delay so user sees the message
             setTimeout(() => {
                 onUploadSuccess();
-            }, 1000);
+            }, 800);
+
         } catch (error) {
             console.error("Upload failed", error);
             setStatus("Upload failed. Please try again.");

@@ -33,4 +33,9 @@ export const api = {
     });
     return response.data;
   },
+  getPages: async () => {
+    const response = await apiClient.get("/pages");
+    return response.data;
+  },
+
 };
