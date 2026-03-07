@@ -1,7 +1,12 @@
 "use client";
 
 import { useRef } from "react";
-import { BookViewer } from "./BookViewer";
+import dynamic from "next/dynamic";
+
+const BookViewer = dynamic(
+    () => import("./BookViewer").then(mod => mod.BookViewer),
+    { ssr: false }
+);
 import { ChatPanel } from "./ChatPanel";
 import {
     ResizableHandle,

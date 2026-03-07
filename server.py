@@ -1,8 +1,11 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
 import shutil
 import os
+import re
 
 from processing.document_processor import load_book, create_chunks
 from retrieval.vector_store import load_embedding_model, load_or_create_vector_store
@@ -17,10 +20,10 @@ PAGE_WINDOW = 5
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-
 app = FastAPI()
 
-# Allow frontend requests
+# ---------- CORS ----------
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -29,9 +32,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------- GLOBAL STATE ----------
 
-# Global backend state
 app_state = {
+    "current_book_path": BOOK_PATH,
     "documents": None,
     "chunks": None,
     "bm25": None,
@@ -42,30 +46,28 @@ app_state = {
 }
 
 
-# ---------- STARTUP INITIALIZATION ----------
+# ---------- STARTUP ----------
 
 @app.on_event("startup")
 def startup_event():
 
     print("\nLoading default book...")
-    documents = load_book(BOOK_PATH)
-    app_state["documents"] = documents
 
-    print("Creating chunks...")
+    documents = load_book(BOOK_PATH)
     chunks = create_chunks(documents)
 
-    print("Building BM25 index...")
     bm25 = build_bm25_index(chunks)
 
     print("Loading embedding model...")
     embedding = load_embedding_model()
 
-    print("Loading vector store...")
+    print("Creating vector store...")
     vector_store = load_or_create_vector_store(chunks, embedding)
 
     print("Initializing LLM...")
     llm = initialize_llm()
 
+    app_state["documents"] = documents
     app_state["chunks"] = chunks
     app_state["bm25"] = bm25
     app_state["embedding"] = embedding
@@ -87,22 +89,22 @@ class PageRequest(BaseModel):
     page: int
 
 
-# ---------- ENDPOINTS ----------
+# ---------- PAGE TRACKING ----------
 
 @app.post("/set_page")
 def set_page(req: PageRequest):
-
-    print("Current page:", req.page)
 
     app_state["current_page"] = req.page
     return {"status": "ok"}
 
 
+# ---------- ASK QUESTION ----------
+
 @app.post("/ask")
 def ask_question(req: AskRequest):
 
     if app_state["chunks"] is None:
-        raise HTTPException(status_code=500, detail="Backend not initialized yet.")
+        raise HTTPException(status_code=500, detail="Backend not initialized.")
 
     query = req.question
     current_page = req.page_number or app_state["current_page"]
@@ -130,7 +132,7 @@ def ask_question(req: AskRequest):
     return {"answer": response.content}
 
 
-# ---------- UPLOAD ENDPOINT ----------
+# ---------- UPLOAD BOOK ----------
 
 @app.post("/upload")
 async def upload_book(file: UploadFile = File(...)):
@@ -139,35 +141,24 @@ async def upload_book(file: UploadFile = File(...)):
 
     print(f"\nUploading book: {file.filename}")
 
-    # Save file
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     print("Processing uploaded book...")
 
     documents = load_book(file_path)
-    app_state["documents"] = documents
-
-    print("Creating chunks...")
     chunks = create_chunks(documents)
 
-    print("Building BM25 index...")
     bm25 = build_bm25_index(chunks)
 
-    print("Loading embedding model...")
-    embedding = load_embedding_model()
-
-    print("Loading vector store...")
+    embedding = app_state["embedding"]  # reuse loaded model
     vector_store = load_or_create_vector_store(chunks, embedding)
 
-    print("Initializing LLM...")
-    llm = initialize_llm()
-
+    app_state["current_book_path"] = file_path
+    app_state["documents"] = documents
     app_state["chunks"] = chunks
     app_state["bm25"] = bm25
-    app_state["embedding"] = embedding
     app_state["vector_store"] = vector_store
-    app_state["llm"] = llm
     app_state["current_page"] = 1
 
     print("Book uploaded and processed successfully\n")
@@ -175,25 +166,32 @@ async def upload_book(file: UploadFile = File(...)):
     return {"status": "uploaded", "filename": file.filename}
 
 
+# ---------- SERVE PDF ----------
 
-#CLEANER HELPER
-import re
+@app.get("/pdf")
+def get_pdf():
+
+    path = app_state["current_book_path"]
+
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="PDF not found")
+
+    return FileResponse(path, media_type="application/pdf")
+
+
+# ---------- CLEAN TEXT HELPER ----------
 
 def clean_text(text: str) -> str:
 
-    # Fix line breaks inside paragraphs
     text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)
-
-    # Normalize multiple spaces
     text = re.sub(r'\s+', ' ', text)
-
-    # Restore paragraph breaks
     text = re.sub(r'\. ', '.\n\n', text)
 
     return text.strip()
 
 
-#GET PAGES ENDPOINT
+# ---------- DEBUG: GET PAGES ----------
+
 @app.get("/pages")
 def get_pages():
 
@@ -207,7 +205,7 @@ def get_pages():
     for i, doc in enumerate(documents):
         pages.append({
             "pageNumber": i + 1,
-            "content": doc.page_content
+            "content": clean_text(doc.page_content)
         })
 
     return {"pages": pages}

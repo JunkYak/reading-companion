@@ -1,14 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { UploadBook } from "@/components/UploadBook";
-import { useRouter } from "next/navigation";
+import { ReaderLayout } from "@/components/ReaderLayout";
 
 export default function Home() {
-  const router = useRouter();
+
+  const [bookLoaded, setBookLoaded] = useState(false);
 
   return (
-    <main className="min-h-screen flex flex-col justify-center bg-background text-foreground">
-      <UploadBook onUploadSuccess={() => router.push("/reader")} />
-    </main>
+    <>
+      {bookLoaded ? (
+        <ReaderLayout />
+      ) : (
+        <UploadBook onUploadSuccess={() => setBookLoaded(true)} />
+      )}
+    </>
   );
 }
