@@ -25,7 +25,7 @@ export const ChatPanel = forwardRef(function ChatPanel(
         {
             role: "ai",
             content:
-                "Hello! I'm your reading companion. Highlight text to ask questions, or just ask away.",
+                "Hello! I'm mylo, your reading companion. Highlight text to ask questions, or just ask away.",
         },
     ]);
 
@@ -93,7 +93,7 @@ export const ChatPanel = forwardRef(function ChatPanel(
 
             {/* HEADER */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 shrink-0">
-                <h3 className="text-sm font-medium tracking-wide">Assistant</h3>
+                <h3 className="text-sm font-medium tracking-wide">Mylo</h3>
                 <Button
                     variant="ghost"
                     size="icon"
@@ -112,18 +112,18 @@ export const ChatPanel = forwardRef(function ChatPanel(
                         <div
                             key={idx}
                             className={`flex flex-col max-w-[90%] text-sm ${msg.role === "user"
-                                    ? "self-end items-end"
-                                    : "self-start items-start"
+                                ? "self-end items-end"
+                                : "self-start items-start"
                                 }`}
                         >
                             <span className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider px-1">
-                                {msg.role === "user" ? "You" : "AI"}
+                                {msg.role === "user" ? "You" : "mylo"}
                             </span>
 
                             <div
                                 className={`px-4 py-2.5 rounded-2xl break-words ${msg.role === "user"
-                                        ? "bg-primary text-primary-foreground rounded-br-sm"
-                                        : "bg-muted text-foreground rounded-bl-sm"
+                                    ? "bg-primary text-primary-foreground rounded-br-sm"
+                                    : "bg-muted text-foreground rounded-bl-sm"
                                     }`}
                             >
                                 {msg.content}

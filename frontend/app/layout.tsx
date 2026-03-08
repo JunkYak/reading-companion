@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Reading Companion",
+  title: "Mylo",
   description: "An AI-powered reading companion application",
 };
 

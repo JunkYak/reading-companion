@@ -53,11 +53,15 @@ export function UploadBook({ onUploadSuccess }: UploadBookProps) {
     return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
 
-            <h1 className="text-4xl font-semibold mb-2 text-foreground tracking-tight">
-                AI Reading Companion
+            <h1 className="text-5xl font-semibold tracking-tight text-foreground">
+                mylo
             </h1>
 
-            <p className="text-muted-foreground mb-8 text-lg">
+            <p className="mt-2 text-lg text-muted-foreground">
+                Your AI reading companion
+            </p>
+
+            <p className="mt-1 text-sm text-muted-foreground mb-10">
                 Upload a book to begin reading
             </p>
 
@@ -95,8 +99,8 @@ export function UploadBook({ onUploadSuccess }: UploadBookProps) {
                                         strokeLinejoin="round"
                                         strokeWidth="2"
                                         d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5
-                    5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0
-                    0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"
+                5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0
+                0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"
                                     />
                                 </svg>
 
@@ -109,6 +113,7 @@ export function UploadBook({ onUploadSuccess }: UploadBookProps) {
                                 </p>
                             </>
                         )}
+
                     </div>
 
                     <input
