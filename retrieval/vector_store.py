@@ -11,7 +11,7 @@ def load_embedding_model():
     Loads the embedding model used for semantic search.
     """
     embedding = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2"
+        model_name="sentence-transformers/paraphrase-MiniLM-L3-v2"
     )
     return embedding
 
