@@ -10,6 +10,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 
+
 /* Worker */
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
     "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -30,7 +31,9 @@ export function BookViewer({ onOpenChat, onSendMessage }: BookViewerProps) {
     /* zoom state */
     const [scale, setScale] = useState<number>(1.2);
 
-    const pdfUrl = "http://localhost:8001/pdf";
+
+
+    const pdfUrl = api.getPdfUrl();
 
     const handleAction = (
         action: "explain" | "ask" | "summarize",
@@ -92,27 +95,6 @@ export function BookViewer({ onOpenChat, onSendMessage }: BookViewerProps) {
 
             <div className="w-full max-w-[850px] mx-auto px-8 py-16 pb-32">
 
-                {/* Zoom Controls */}
-                <div className="flex justify-center gap-3 mb-10">
-                    <button
-                        className="px-3 py-1 bg-neutral-800 text-white rounded"
-                        onClick={() => setScale((s) => Math.max(0.6, s - 0.1))}
-                    >
-                        −
-                    </button>
-
-                    <div className="text-sm text-neutral-400">
-                        {(scale * 100).toFixed(0)}%
-                    </div>
-
-                    <button
-                        className="px-3 py-1 bg-neutral-800 text-white rounded"
-                        onClick={() => setScale((s) => Math.min(2.5, s + 0.1))}
-                    >
-                        +
-                    </button>
-                </div>
-
                 <Document
                     file={pdfUrl}
                     loading={<div className="text-center text-white">Loading book...</div>}
@@ -141,8 +123,37 @@ export function BookViewer({ onOpenChat, onSendMessage }: BookViewerProps) {
                         </div>
                     ))}
                 </Document>
-
             </div>
+
+            {/* FLOATING ZOOM CONTROLLER */}
+
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+
+                <div className="pointer-events-auto flex items-center gap-4 px-4 py-2 rounded-full
+                        bg-black/40 backdrop-blur-md border border-white/10
+                        shadow-lg transition hover:bg-black/60">
+
+                    <button
+                        className="text-white text-lg px-2 hover:scale-110 transition"
+                        onClick={() => setScale((s) => Math.max(0.6, s - 0.1))}
+                    >
+                        −
+                    </button>
+
+                    <div className="text-xs text-gray-300 w-10 text-center">
+                        {(scale * 100).toFixed(0)}%
+                    </div>
+
+                    <button
+                        className="text-white text-lg px-2 hover:scale-110 transition"
+                        onClick={() => setScale((s) => Math.min(2.5, s + 0.1))}
+                    >
+                        +
+                    </button>
+
+                </div>
+            </div>
+
         </div>
     );
 }

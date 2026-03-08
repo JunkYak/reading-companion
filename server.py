@@ -11,8 +11,12 @@ from processing.document_processor import load_book, create_chunks
 from retrieval.vector_store import load_embedding_model, load_or_create_vector_store
 from retrieval.bm25_search import build_bm25_index
 from retrieval.hybrid_search import hybrid_search
-from llm.answer_generator import initialize_llm, build_context, generate_answer
-
+from llm.answer_generator import (
+    initialize_llm,
+    build_context,
+    generate_answer,
+    reset_conversation
+)
 
 BOOK_PATH = "data/books/Good omens_Terry Pratchett & Neil Gaiman_liber3.pdf"
 UPLOAD_DIR = "data/books"
@@ -26,7 +30,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -66,6 +70,9 @@ def startup_event():
 
     print("Initializing LLM...")
     llm = initialize_llm()
+
+    # reset memory when server starts
+    reset_conversation()
 
     app_state["documents"] = documents
     app_state["chunks"] = chunks
@@ -160,6 +167,9 @@ async def upload_book(file: UploadFile = File(...)):
     app_state["bm25"] = bm25
     app_state["vector_store"] = vector_store
     app_state["current_page"] = 1
+
+    # reset conversation when new book loads
+    reset_conversation()
 
     print("Book uploaded and processed successfully\n")
 

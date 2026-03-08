@@ -4,6 +4,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 load_dotenv()
 
+# in-memory conversation history
+conversation_history = []
+
 
 def initialize_llm(model="gemini-2.5-flash", temperature=0.3):
     """
@@ -29,24 +32,49 @@ def build_context(chunks):
     return context
 
 
+def build_history():
+    """
+    Converts stored history into text format for the prompt.
+    """
+
+    history_text = ""
+
+    for msg in conversation_history:
+        role = msg["role"]
+        content = msg["content"]
+
+        if role == "user":
+            history_text += f"User: {content}\n"
+        else:
+            history_text += f"Assistant: {content}\n"
+
+    return history_text
+
+
 def generate_answer(llm, query, context):
     """
-    Sends the query and context to the LLM and returns the response.
+    Sends the query and context to the LLM with conversation memory.
     """
+
+    history_text = build_history()
 
     prompt = f"""
 You are a helpful reading companion.
 
-Use the provided context from the book to answer the question.
-You may explain terms or references in simple language if needed,
-but your explanation must be grounded in the context.
+You are having an ongoing conversation with the user about a book.
+
+Use the provided book context when answering.
+If the user refers to something mentioned earlier, use the conversation history.
 
 If the answer is not present in the context, say you don't know.
 
-Context:
+Conversation History:
+{history_text}
+
+Book Context:
 {context}
 
-Question:
+User Question:
 {query}
 
 Answer:
@@ -54,4 +82,29 @@ Answer:
 
     response = llm.invoke(prompt)
 
+    answer_text = response.content
+
+    # store conversation
+    conversation_history.append({
+        "role": "user",
+        "content": query
+    })
+
+    conversation_history.append({
+        "role": "assistant",
+        "content": answer_text
+    })
+
+    # keep history from growing forever
+    if len(conversation_history) > 12:
+        conversation_history.pop(0)
+        conversation_history.pop(0)
+
     return response
+
+def reset_conversation():
+    """
+    Clears conversation history when a new book is loaded.
+    """
+    global conversation_history
+    conversation_history = []
