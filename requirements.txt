@@ -20,3 +20,5 @@ scikit-learn
 
 httpx
 requests
+
+torch --index-url https://download.pytorch.org/whl/cpu
