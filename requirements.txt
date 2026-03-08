@@ -11,6 +11,7 @@ langchain
 langchain-core
 langchain-community
 langchain-google-genai
+langchain-huggingface
 
 sentence-transformers
 
