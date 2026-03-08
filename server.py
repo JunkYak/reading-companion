@@ -52,36 +52,21 @@ app_state = {
 
 # ---------- STARTUP ----------
 
-@app.on_event("startup")
-def startup_event():
+print("\nInitializing backend...")
 
-    print("\nLoading default book...")
+print("Loading embedding model...")
+embedding = load_embedding_model()
 
-    documents = load_book(BOOK_PATH)
-    chunks = create_chunks(documents)
+print("Initializing LLM...")
+llm = initialize_llm()
 
-    bm25 = build_bm25_index(chunks)
+# reset conversation memory
+reset_conversation()
 
-    print("Loading embedding model...")
-    embedding = load_embedding_model()
+app_state["embedding"] = embedding
+app_state["llm"] = llm
 
-    print("Creating vector store...")
-    vector_store = load_or_create_vector_store(chunks, embedding)
-
-    print("Initializing LLM...")
-    llm = initialize_llm()
-
-    # reset memory when server starts
-    reset_conversation()
-
-    app_state["documents"] = documents
-    app_state["chunks"] = chunks
-    app_state["bm25"] = bm25
-    app_state["embedding"] = embedding
-    app_state["vector_store"] = vector_store
-    app_state["llm"] = llm
-
-    print("Reading Companion Backend Ready\n")
+print("Backend ready. Awaiting book upload.\n")
 
 
 # ---------- REQUEST MODELS ----------
