@@ -44,7 +44,7 @@ app.add_middleware(
 # ---------- GLOBAL STATE ----------
 
 app_state = {
-    "current_book_path": BOOK_PATH,
+    "current_book_path": None,
     "documents": None,
     "chunks": None,
     "bm25": None,
@@ -69,33 +69,7 @@ reset_conversation()
 app_state["embedding"] = embedding
 app_state["llm"] = llm
 
-
-# ---------- LOAD DEMO BOOK ON STARTUP ----------
-
-if os.path.exists(BOOK_PATH):
-
-    print("Loading demo book...")
-
-    documents = load_book(BOOK_PATH)
-    chunks = create_chunks(documents)
-
-    bm25 = build_bm25_index(chunks)
-
-    vector_store = load_or_create_vector_store(chunks, embedding)
-
-    app_state["documents"] = documents
-    app_state["chunks"] = chunks
-    app_state["bm25"] = bm25
-    app_state["vector_store"] = vector_store
-    app_state["current_page"] = 1
-
-    print("Demo book loaded successfully.")
-
-else:
-    print("No demo book found. Awaiting book upload.")
-
-print("Backend ready.\n")
-
+print("Backend ready. Awaiting book selection.\n")
 
 # ---------- REQUEST MODELS ----------
 
@@ -124,7 +98,7 @@ def set_page(req: PageRequest):
 def ask_question(req: AskRequest):
 
     if app_state["chunks"] is None:
-        raise HTTPException(status_code=500, detail="Backend not initialized.")
+        raise HTTPException(status_code=500, detail="No book loaded.")
 
     query = req.question
     current_page = req.page_number or app_state["current_page"]
@@ -188,6 +162,41 @@ async def upload_book(file: UploadFile = File(...)):
     return {"status": "uploaded", "filename": file.filename}
 
 
+# ---------- LOAD DEMO BOOK ----------
+
+@app.post("/load_demo")
+def load_demo_book():
+
+    print("\nLoading demo book...")
+
+    documents = load_book(BOOK_PATH)
+    chunks = create_chunks(documents)
+
+    bm25 = build_bm25_index(chunks)
+
+    embedding = app_state["embedding"]
+
+    # Load precomputed FAISS index (no embeddings run)
+    vector_store = FAISS.load_local(
+        "vector_store/faiss_index",
+        embedding,
+        allow_dangerous_deserialization=True
+    )
+
+    app_state["current_book_path"] = BOOK_PATH
+    app_state["documents"] = documents
+    app_state["chunks"] = chunks
+    app_state["bm25"] = bm25
+    app_state["vector_store"] = vector_store
+    app_state["current_page"] = 1
+
+    reset_conversation()
+
+    print("Demo book loaded\n")
+
+    return {"status": "demo_loaded"}
+
+
 # ---------- SERVE PDF ----------
 
 @app.get("/pdf")
@@ -195,7 +204,7 @@ def get_pdf():
 
     path = app_state["current_book_path"]
 
-    if not os.path.exists(path):
+    if path is None or not os.path.exists(path):
         raise HTTPException(status_code=404, detail="PDF not found")
 
     return FileResponse(path, media_type="application/pdf")
@@ -231,34 +240,3 @@ def get_pages():
         })
 
     return {"pages": pages}
-
-@app.post("/load_demo")
-def load_demo_book():
-
-    print("\nLoading demo book...")
-
-    documents = load_book(BOOK_PATH)
-    chunks = create_chunks(documents)
-
-    bm25 = build_bm25_index(chunks)
-
-    embedding = app_state["embedding"]
-
-    vector_store = FAISS.load_local(
-        "vector_store/faiss_index",
-        embedding,
-        allow_dangerous_deserialization=True
-    )
-
-    app_state["current_book_path"] = BOOK_PATH
-    app_state["documents"] = documents
-    app_state["chunks"] = chunks
-    app_state["bm25"] = bm25
-    app_state["vector_store"] = vector_store
-    app_state["current_page"] = 1
-
-    reset_conversation()
-
-    print("Demo book loaded\n")
-
-    return {"status": "demo_loaded"}
