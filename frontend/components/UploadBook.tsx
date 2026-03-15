@@ -9,13 +9,16 @@ interface UploadBookProps {
 }
 
 export function UploadBook({ onUploadSuccess }: UploadBookProps) {
+
     const [file, setFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
+    const [demoLoading, setDemoLoading] = useState(false);
     const [status, setStatus] = useState("");
 
     const inputRef = useRef<HTMLInputElement>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+
         if (!e.target.files || e.target.files.length === 0) return;
 
         const selectedFile = e.target.files[0];
@@ -30,11 +33,12 @@ export function UploadBook({ onUploadSuccess }: UploadBookProps) {
     };
 
     const handleUpload = async (fileToUpload: File) => {
+
         setLoading(true);
         setStatus("Uploading book...");
 
         try {
-            // ✅ send FILE not FormData
+
             await api.uploadBook(fileToUpload);
 
             setStatus("Processing book...");
@@ -44,13 +48,38 @@ export function UploadBook({ onUploadSuccess }: UploadBookProps) {
             }, 800);
 
         } catch (error) {
+
             console.error("Upload failed", error);
             setStatus("Upload failed. Please try again.");
             setLoading(false);
+
+        }
+    };
+
+    const handleDemo = async () => {
+
+        setDemoLoading(true);
+        setStatus("Loading demo book...");
+
+        try {
+
+            await api.loadDemoBook();
+
+            setTimeout(() => {
+                onUploadSuccess();
+            }, 400);
+
+        } catch (error) {
+
+            console.error("Demo load failed", error);
+            setStatus("Failed to load demo book.");
+            setDemoLoading(false);
+
         }
     };
 
     return (
+
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
 
             <h1 className="text-5xl font-semibold tracking-tight text-foreground">
@@ -71,9 +100,11 @@ export function UploadBook({ onUploadSuccess }: UploadBookProps) {
                     htmlFor="dropzone-file"
                     className="flex flex-col items-center justify-center w-full h-40 rounded-xl border-2 border-dashed border-border cursor-pointer bg-muted/20 hover:bg-muted/50 transition-colors"
                 >
+
                     <div className="flex flex-col items-center justify-center pt-5 pb-6 pointer-events-none">
 
                         {file ? (
+
                             <>
                                 <p className="text-sm text-foreground font-medium">
                                     {file.name}
@@ -85,7 +116,9 @@ export function UploadBook({ onUploadSuccess }: UploadBookProps) {
                                     </p>
                                 )}
                             </>
+
                         ) : (
+
                             <>
                                 <svg
                                     className="w-8 h-8 mb-4 text-muted-foreground"
@@ -99,8 +132,8 @@ export function UploadBook({ onUploadSuccess }: UploadBookProps) {
                                         strokeLinejoin="round"
                                         strokeWidth="2"
                                         d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5
-                5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0
-                0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"
+                                        5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0
+                                        0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"
                                     />
                                 </svg>
 
@@ -112,6 +145,7 @@ export function UploadBook({ onUploadSuccess }: UploadBookProps) {
                                     PDF files only (Max. 50MB)
                                 </p>
                             </>
+
                         )}
 
                     </div>
@@ -123,19 +157,41 @@ export function UploadBook({ onUploadSuccess }: UploadBookProps) {
                         className="hidden"
                         accept="application/pdf"
                         onChange={handleFileChange}
-                        disabled={loading}
+                        disabled={loading || demoLoading}
                     />
+
                 </label>
 
                 <Button
                     className="w-full h-12 text-md rounded-lg"
                     onClick={() => inputRef.current?.click()}
-                    disabled={loading}
+                    disabled={loading || demoLoading}
                 >
                     {loading ? "Uploading..." : "Upload PDF"}
                 </Button>
 
+                <div className="flex items-center w-full gap-3">
+                    <div className="flex-grow border-t border-border"></div>
+                    <span className="text-xs text-muted-foreground">or</span>
+                    <div className="flex-grow border-t border-border"></div>
+                </div>
+
+                <Button
+                    variant="outline"
+                    className="w-full h-12 text-md rounded-lg"
+                    onClick={handleDemo}
+                    disabled={loading || demoLoading}
+                >
+                    {demoLoading ? "Loading Demo..." : "Try Demo Book"}
+                </Button>
+
+                <p className="text-xs text-muted-foreground text-center">
+                    Use a preloaded book to test out Mylo
+                </p>
+
             </div>
+
         </div>
+
     );
 }

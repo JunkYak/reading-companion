@@ -30,6 +30,18 @@ export const api = {
     return response.data;
   },
 
+  /* ---------- Load Demo Book ---------- */
+
+  loadDemoBook: async () => {
+    try {
+      const response = await apiClient.post("/load_demo");
+      return response.data;
+    } catch (error) {
+      console.error("Demo load error:", error);
+      throw error;
+    }
+  },
+
   /* ---------- Ask Question ---------- */
 
   askQuestion: async (

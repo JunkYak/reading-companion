@@ -7,10 +7,13 @@ import shutil
 import os
 import re
 
+from langchain_community.vectorstores import FAISS
+
 from processing.document_processor import load_book, create_chunks
 from retrieval.vector_store import load_embedding_model, load_or_create_vector_store
 from retrieval.bm25_search import build_bm25_index
 from retrieval.hybrid_search import hybrid_search
+
 from llm.answer_generator import (
     initialize_llm,
     build_context,
@@ -18,7 +21,9 @@ from llm.answer_generator import (
     reset_conversation
 )
 
-BOOK_PATH = "data/books/Good omens_Terry Pratchett & Neil Gaiman_liber3.pdf"
+# ---------- CONFIG ----------
+
+BOOK_PATH = "data/books/demo_book.pdf"
 UPLOAD_DIR = "data/books"
 PAGE_WINDOW = 5
 
@@ -49,7 +54,6 @@ app_state = {
     "current_page": 1
 }
 
-
 # ---------- STARTUP ----------
 
 print("\nInitializing backend...")
@@ -60,13 +64,37 @@ embedding = load_embedding_model()
 print("Initializing LLM...")
 llm = initialize_llm()
 
-# reset conversation memory
 reset_conversation()
 
 app_state["embedding"] = embedding
 app_state["llm"] = llm
 
-print("Backend ready. Awaiting book upload.\n")
+
+# ---------- LOAD DEMO BOOK ON STARTUP ----------
+
+if os.path.exists(BOOK_PATH):
+
+    print("Loading demo book...")
+
+    documents = load_book(BOOK_PATH)
+    chunks = create_chunks(documents)
+
+    bm25 = build_bm25_index(chunks)
+
+    vector_store = load_or_create_vector_store(chunks, embedding)
+
+    app_state["documents"] = documents
+    app_state["chunks"] = chunks
+    app_state["bm25"] = bm25
+    app_state["vector_store"] = vector_store
+    app_state["current_page"] = 1
+
+    print("Demo book loaded successfully.")
+
+else:
+    print("No demo book found. Awaiting book upload.")
+
+print("Backend ready.\n")
 
 
 # ---------- REQUEST MODELS ----------
@@ -103,9 +131,7 @@ def ask_question(req: AskRequest):
 
     chunks = app_state["chunks"]
     bm25 = app_state["bm25"]
-    embedding = app_state["embedding"]
     llm = app_state["llm"]
-
     vector_store = app_state["vector_store"]
 
     context_chunks, _, _, _ = hybrid_search(
@@ -145,7 +171,7 @@ async def upload_book(file: UploadFile = File(...)):
 
     bm25 = build_bm25_index(chunks)
 
-    embedding = app_state["embedding"]  # reuse loaded model
+    embedding = app_state["embedding"]
     vector_store = load_or_create_vector_store(chunks, embedding)
 
     app_state["current_book_path"] = file_path
@@ -155,7 +181,6 @@ async def upload_book(file: UploadFile = File(...)):
     app_state["vector_store"] = vector_store
     app_state["current_page"] = 1
 
-    # reset conversation when new book loads
     reset_conversation()
 
     print("Book uploaded and processed successfully\n")
@@ -206,3 +231,34 @@ def get_pages():
         })
 
     return {"pages": pages}
+
+@app.post("/load_demo")
+def load_demo_book():
+
+    print("\nLoading demo book...")
+
+    documents = load_book(BOOK_PATH)
+    chunks = create_chunks(documents)
+
+    bm25 = build_bm25_index(chunks)
+
+    embedding = app_state["embedding"]
+
+    vector_store = FAISS.load_local(
+        "vector_store/faiss_index",
+        embedding,
+        allow_dangerous_deserialization=True
+    )
+
+    app_state["current_book_path"] = BOOK_PATH
+    app_state["documents"] = documents
+    app_state["chunks"] = chunks
+    app_state["bm25"] = bm25
+    app_state["vector_store"] = vector_store
+    app_state["current_page"] = 1
+
+    reset_conversation()
+
+    print("Demo book loaded\n")
+
+    return {"status": "demo_loaded"}
