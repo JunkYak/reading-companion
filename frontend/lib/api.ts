@@ -6,7 +6,7 @@ const API_BASE_URL =
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 600000,
-});
+})
 
 /*
 Central API helper
