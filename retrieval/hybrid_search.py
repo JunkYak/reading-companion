@@ -1,4 +1,3 @@
-from retrieval.vector_store import build_local_vector_store
 from retrieval.bm25_search import bm25_search
 
 
@@ -17,16 +16,23 @@ def get_candidate_chunks(chunks, current_page, page_window=5):
     return candidate_chunks, candidate_indices
 
 
-def vector_search(query, candidate_chunks, embedding, k=8):
+def vector_search(query, vector_store, k=15):
     """
-    Runs semantic vector search on candidate chunks.
+    Runs semantic search on the global FAISS index.
     """
+    return vector_store.similarity_search(query, k=k)
 
-    local_vector_store = build_local_vector_store(candidate_chunks, embedding)
 
-    vector_results = local_vector_store.similarity_search(query, k=k)
+def filter_vector_results(vector_results, candidate_indices):
 
-    return vector_results
+    candidate_set = set(candidate_indices)
+
+    filtered = [
+        doc for doc in vector_results
+        if doc.metadata["chunk_id"] in candidate_set
+    ]
+
+    return filtered
 
 
 def merge_results(vector_results, bm25_results, max_results=5):
@@ -36,9 +42,11 @@ def merge_results(vector_results, bm25_results, max_results=5):
 
     combined_results = []
 
-    for v, b in zip(vector_results, bm25_results):
-        combined_results.append(v)
-        combined_results.append(b)
+    for i in range(max(len(vector_results), len(bm25_results))):
+        if i < len(vector_results):
+            combined_results.append(vector_results[i])
+        if i < len(bm25_results):
+            combined_results.append(bm25_results[i])
 
     seen = set()
     unique_results = []
@@ -84,7 +92,7 @@ def expand_context(results, chunks):
     return unique_chunks
 
 
-def hybrid_search(query, current_page, chunks, embedding, bm25):
+def hybrid_search(query, current_page, chunks, vector_store, bm25):
     """
     Full hybrid retrieval pipeline.
     """
@@ -95,11 +103,15 @@ def hybrid_search(query, current_page, chunks, embedding, bm25):
         current_page
     )
 
-    # Vector retrieval
+    # Vector retrieval using GLOBAL FAISS index
     vector_results = vector_search(
         query,
-        candidate_chunks,
-        embedding
+        vector_store
+    )
+
+    vector_results = filter_vector_results(
+        vector_results,
+        candidate_indices
     )
 
     # BM25 retrieval

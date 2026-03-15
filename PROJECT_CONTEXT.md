@@ -1,167 +1,76 @@
-# PROJECT_CONTEXT
+# PROJECT CONTEXT
 
 ## 1. PROJECT OVERVIEW
-The project is an AI-powered Reading Companion application designed to allow users to upload books (PDF files) and interactively read them while having the ability to ask questions about the text, request explanations, and generate summaries. It aims to create an augmented reading experience where an LLM (driven by Google's Gemini) acts as an always-available tutor or assistant, grounded strictly in the context of the book being read.
+The Reading Companion is an AI-powered Full-Stack web application designed to allow users to interactively read books (PDFs) while leveraging an LLM (Google's Gemini) as an intelligent tutor. It supports conversational memory, page-aware querying, explanation of selected text, and summarization, all grounded strictly in the context of the book being read.
 
-## 2. SYSTEM ARCHITECTURE
-The system is built as a decoupled Full-Stack application:
-- **Frontend**: A Next.js application (App Router) using React and Tailwind CSS for the user interface. It provides a split-pane reader and chat interface.
-- **Backend (Current State)**: A set of Python modules orchestrating a local CLI application. It handles text extraction, chunking, and LLM querying.
-- **Retrieval System**: A hybrid search system combining sparse (BM25) and dense (FAISS with HuggingFace embeddings) retrieval, specifically optimized for page-aware querying.
-- **LLM Context**: Queries and context are fed to Google Generative AI (`gemini-2.5-flash`) via LangChain.
-- **Vector Storage**: Local FAISS vector store used for persistent embedding storage.
+## 2. SYSTEM ARCHITECTURE & REQUIREMENTS
+The system operates as a decoupled client-server architecture:
 
-## 3. BACKEND STRUCTURE
-The Python backend contains core logic separated by responsibility:
+### Requirements
+- **Frontend**: Node.js ecosystem, Next.js (App Router), React, Tailwind CSS, Axios, Lucide React (icons), and Shadcn/UI (Radix UI primitives).
+- **Backend**: Python 3.x ecosystem. Key dependencies (from `requirements.txt` / codebase):
+  - `fastapi`, `uvicorn`, `python-multipart` (API Server)
+  - `langchain`, `langchain-google-genai` (LLM Integration)
+  - `sentence-transformers`, `faiss-cpu`, `rank_bm25` (Embeddings & Vector Store)
+  - `pypdf` (PDF Parsing)
+- **External APIs**: Google Gemini API (`gemini-2.5-flash`).
 
-- `processing/`: Contains `document_processor.py`, responsible for loading PDFs using `PyPDFLoader` and splitting the text into smaller, overlapping chunks using `RecursiveCharacterTextSplitter`.
-- `retrieval/`: Contains the retrieval engine:
-  - `bm25_search.py`: Handles keyword-based text retrieval using `BM25Okapi`.
-  - `vector_store.py`: Manages the FAISS index using `HuggingFaceEmbeddings` (specifically `sentence-transformers/all-MiniLM-L6-v2`).
-  - `hybrid_search.py`: Merges the results of Vector and BM25 searches, prioritizing chunks within a specific "page window" of the user's current reading position. It also expands context to include neighboring chunks.
-- `llm/`: Contains `answer_generator.py`, which initializes the `ChatGoogleGenerativeAI` model, builds combined context strings, and prompts the LLM to answer user questions strictly based on the provided text.
-- `app/`: Currently contains `ingest.py` and `chunking.py`. These files are empty (0 bytes) and appear to be placeholders for moving the local ingest logic into an API layer.
-- `data/`: A directory storing the raw books/PDF files (e.g., `Good omens_Terry Pratchett & Neil Gaiman_liber3.pdf`).
-- `vector_store/`: Directory where the local FAISS index object (`faiss_index`) is saved.
-- `main.py`: A local CLI script that serves as the current integration point. It builds the pipeline (loads book, chunks, builds BM25 and FAISS, initializes LLM) and drops the user into a terminal REPL to change pages or ask questions.
+### Architecture
+- **Frontend**: A React/Next.js interface providing a split-pane reader and chat UI.
+- **Backend**: A FastAPI server that orchestrates document ingestion, chunking, retrieval, and LLM prompting.
+- **Retrieval System**: A robust Hybrid Search approach (BM25 for exact keyword matching + FAISS/HuggingFace for semantic search) with a page-restricted context window.
+- **State Management**: The backend is stateful per session, currently holding in-memory references to the active book's chunks, FAISS index, and conversation history.
 
-## 4. RETRIEVAL PIPELINE
-The question answering system performs hybrid, page-aware retrieval through the following steps:
-1. **PDF Loading & Text Extraction**: `PyPDFLoader` reads the book from the `data/` directory and extracts page content and metadata.
-2. **Chunking**: `RecursiveCharacterTextSplitter` divides the text into chunks of 1000 characters with 200 characters overlap.
-3. **Embedding Generation**: `HuggingFaceEmbeddings` maps chunk text into semantic vectors.
-4. **FAISS Indexing**: Chunks are stored in a local FAISS vector store.
-5. **BM25 Keyword Search**: An in-memory BM25 index is built for exact keyword matching.
-6. **Page Filtering**: When the user queries, `get_candidate_chunks` filters chunks down to a specified `page_window` (e.g., +/- 5 pages) around the user's current reading page.
-7. **Hybrid Retrieval**: Both `vector_search` (Semantic) and `bm25_search` (Keyword) are executed against the restricted candidate chunks. The results are interleaved and deduplicated in `merge_results`.
-8. **Context Expansion**: For each retrieved chunk, `expand_context` retrieves its immediate neighbors (chunk ID - 1 and + 1) to restore continuous surrounding text.
-9. **LLM Answer Generation**: The expanded chunks are concatenated and sent to `gemini-2.5-flash` with a strict prompt defining its role and constraining it to the provided context.
+---
 
-## 5. FRONTEND ARCHITECTURE
-The frontend is built using Next.js (App Router), React, and Tailwind CSS.
-- `app/`: Contains the main routing structure.
-  - `page.tsx`: The landing page, rendering the file upload UI.
-  - `reader/page.tsx`: The main reader interface route.
-- `components/`: Contains the primary React modules.
-- `components/ui/`: Contains reusable, primitive UI components (likely from `shadcn/ui` based on patterns like `Button`, `ResizablePanel`).
-- `lib/`: Contains `api.ts`, which sets up the Axios frontend client.
+## 3. FOLDER STRUCTURE & SCRIPT ANALYSIS
 
-Major components include:
-- `ReaderLayout`: Uses `ResizablePanelGroup` to render a split-pane layout consisting of a `BookViewer` on the left (70% width) and a `ChatPanel` on the right (30% width).
-- `BookViewer`: A scrolling container that renders pages. It listens to scroll events to track the active page number and triggers an API route to sync state. Currently populates 15 dummy pages using "Lorem ipsum".
-- `ChatPanel`: Interactive chat interface. Displays a message history, manages auto-scrolling to the newest message, and simulates a loading state while querying the backend for an AI response.
-- `TextSelectionMenu`: A floating utility menu (`MessageSquare`, `HelpCircle`, `AlignLeft`). It watches DOM text selection and pops up over the selected text, allowing users to quickly "Explain", "Ask AI", or "Summarize" snippets.
-- `UploadBook`: Renders a drag-and-drop file upload zone. Currently contains mocked loading stages via `setTimeout` to simulate backend processing before transitioning to the reader.
+### Root Directory
+- `server.py`: The main REST API server built with FastAPI. It handles CORS, maintains global backend state, and exposes endpoints:
+  - `POST /upload`: Ingests a new PDF, chunks it, and builds the retrieval indices.
+  - `POST /ask`: Performs hybrid search on the current page context and generates an LLM answer using conversational memory.
+  - `POST /set_page`: Updates the active page number in the backend state.
+  - `GET /pdf`: Serves the uploaded PDF file.
+  - `GET /pages`: Debug endpoint returning parsed text per page.
+- `main.py`: The legacy/development local CLI script. It runs the entire ingestion and QA pipeline directly in the terminal without starting an HTTP server.
+- `requirements.txt`: Python dependencies.
+- `.env`: Environment variables (e.g., `GOOGLE_API_KEY`).
+- `Procfile`: Deployment configuration file (e.g., for Heroku/Railway).
 
-## 6. READER SYSTEM
-The `BookViewer` component drives the reading experience:
-- **Continuous Scrolling**: Renders pages dynamically in a vertical list, separated by page markers (horizontal rules).
-- **Page Markers**: Each block of text carries a `data-page` attribute and visual dividers.
-- **Scroll Detection**: An `onScroll` handler manually loops over `[data-page]` DOM elements. It calculates `getBoundingClientRect()` to detect which page element is crossing the vertical middle of the screen.
-- **Current Page Tracking**: As the active page crosses the threshold, the local `currentPage` state updates and `api.setPage()` is fired asynchronously to notify the backend of the user's active context window.
+### `processing/` (Document Ingestion)
+- `document_processor.py`: Contains `load_book` (uses `PyPDFLoader` to extract text) and `create_chunks` (uses `RecursiveCharacterTextSplitter` to divide text into 1000-character overlapping chunks for retrieval).
 
-## 7. CHAT SYSTEM
-The `ChatPanel` handles the conversational UI:
-- **Message State**: An array containing objects shaped as `{ role: "user" | "ai", content: string }`.
-- **API Calls**: When a user submits text, it is appended to the message array instantly, and `api.askQuestion()` is awaited. The backend response is then pushed to the messages array.
-- **Auto-scroll Behavior**: A dummy `<div ref={bottomRef} />` sits at the end of the message list. A `useEffect` hook triggers `scrollIntoView({ behavior: "smooth" })` whenever the messages array changes.
-- **User Input Handling**: A `textarea` listens to standard text input as well as the `Enter` key (preventing defaults unless shifted) to submit questions seamlessly.
+### `retrieval/` (Search Engine)
+- `vector_store.py`: Manages dense semantic retrieval. Loads `sentence-transformers/all-MiniLM-L6-v2` and creates a FAISS index from document chunks.
+- `bm25_search.py`: Manages sparse keyword retrieval. Builds an in-memory `BM25Okapi` index.
+- `hybrid_search.py`: The core retrieval logic. It filters candidate chunks down to a specified `PAGE_WINDOW` (e.g., +/- 5 pages), runs both Vector and BM25 searches, deduplicates the results, and then expands the context (pulling the original adjacent chunks) to ensure the LLM receives complete sentences.
 
-## 8. FRONTEND ↔ BACKEND API
-The frontend explicitly expects a backend API running at `http://localhost:8001`, handled via `axios` in `lib/api.ts`.
+### `llm/` (Generation & Memory)
+- `answer_generator.py`: Interfaces with Google Generative AI. It exposes `initialize_llm`, builds the prompt context, and manages a floating 12-message `conversation_history` to allow the user to ask follow-up questions organically. It also includes specific instructions for Mylo (the assistant's persona) to reference dictionary definitions and contextual meaning.
 
-Endpoints assumed by the frontend:
-- `POST /upload`: Sends the file as `multipart/form-data`. Called by `UploadBook`.
-- `POST /ask`: Sends a JSON payload containing `{ question, selected_text, page_number }`. Used by `ChatPanel` and rapid actions in `TextSelectionMenu`.
-- `POST /set_page`: Computes `{ page }` and updates the server about the user's scroll position. Triggered continuously by `BookViewer`.
+### `data/`
+- Directory storing uploaded books (e.g., `Good omens_Terry Pratchett & Neil Gaiman_liber3.pdf`).
 
-*(Note: These endpoints currently DO NOT EXIST in the Python backend, which only runs as a CLI).*
+### `frontend/` (Next.js Application)
+- `app/page.tsx`: The landing page where users upload a PDF book.
+- `app/reader/page.tsx`: The main reader route containing the application workspace.
+- `lib/api.ts`: An Axios client defining exactly how the frontend talks to the backend (`/upload`, `/ask`, `/set_page`, `/pages`, `/pdf`). It routes to a production URL or localhost.
+- `components/`:
+  - `ReaderLayout.tsx`: The main split-pane container using generic resizable panels.
+  - `BookViewer.tsx`: The left pane. It renders the book content and monitors the user's scroll position. When a new page crosses the threshold, it fires `api.setPage()` to keep the backend's context window perfectly synced with what the user is currently looking at.
+  - `ChatPanel.tsx`: The right pane. Handles the chat thread, optimistic UI updates, and invokes `api.askQuestion()`. Features auto-scroll and loading states.
+  - `TextSelectionMenu.tsx`: A floating popover that appears when a user highlights text in the book. It provides quick actions (Explain, Ask AI, Summarize) which patch directly into the chat flow.
+  - `UploadBook.tsx`: The drag-and-drop interface for sending the PDF file to `api.uploadBook()`.
 
-## 9. CURRENT PROJECT STATE
-**Implemented & Working:**
-- The Python codebase successfully reads PDFs, indexes text into FAISS and BM25, and retrieves highly relevant chunks tied to page-window logic. LLM generation works efficiently in the CLI (`main.py`).
-- The generic Next.js Frontend layout is robust. The resizable dual-pane reader, floating text selection popup, and chat UI are beautifully styled and function smoothly.
-- The `lib/api.ts` defines the exact contract needed to bridge the frontend and backend.
+---
 
-**Unfinished / Placeholder:**
-- The book rendering in the frontend `BookViewer` is currently populated by a hardcoded Array of 15 "Lorem ipsum" dummy pages. Real PDF streaming or rendering (e.g., using `react-pdf`) is missing.
-- The `UploadBook` component mocks the upload sequence utilizing `setTimeout()`.
-- The `app/ingest.py` and `app/chunking.py` backend files are completely empty.
-- There is NO HTTP Server (e.g., FastAPI, Flask) serving the Python backend. The API routes outlined in `api.ts` haven't been implemented server-side.
+## 4. HOW THE SYSTEM WORKS (THE PIPELINE)
 
-## 10. FUTURE DEVELOPMENT AREAS
-Based strictly on the current code state, the next logical implementation steps are:
-1. **Develop a FastAPI/Flask Server**: Replace the `main.py` CLI script by building an HTTP API with three core endpoints (`/upload`, `/ask`, `/set_page`) matching the frontend's contract.
-2. **Dynamic PDF Processing**: Move PDF ingestion into the `/upload` endpoint so the user's uploaded file dynamically triggers `load_book`, chunking, and FAISS indexing, replacing the hardcoded `BOOK_PATH`.
-3. **Frontend PDF Rendering**: Update `BookViewer` to render actual content. This either requires sending page text from the backend or integrating a React PDF viewer library that reads from the uploaded blob.
-4. **Implement Context Menus**: Connect the actions (`explain`, `ask`, `summarize`) from `TextSelectionMenu` to correctly populate the `ChatPanel` state and trigger targeted API calls.
-5. **State Management**: Persist `vector_store` and session history per document rather than overlapping data locally.
-
-## 11. COMPLETE DIRECTORY STRUCTURE
-
-```text
-project-root/
-│
-├── .env
-├── .gitignore
-├── requirements.txt
-├── main.py
-├── PROJECT_CONTEXT.md
-│
-├── app/
-│   ├── chunking.py
-│   └── ingest.py
-│
-├── data/
-│   └── books/
-│       └── Good omens_Terry Pratchett & Neil Gaiman_liber3.pdf
-│
-├── llm/
-│   └── answer_generator.py
-│
-├── processing/
-│   └── document_processor.py
-│
-├── retrieval/
-│   ├── bm25_search.py
-│   ├── hybrid_search.py
-│   └── vector_store.py
-│
-├── vector_store/
-│   └── faiss_index/
-│       ├── index.faiss
-│       └── index.pkl
-│
-└── frontend/
-    ├── .gitignore
-    ├── components.json
-    ├── eslint.config.mjs
-    ├── next-env.d.ts
-    ├── next.config.ts
-    ├── package.json
-    ├── package-lock.json
-    ├── postcss.config.mjs
-    ├── README.md
-    ├── tsconfig.json
-    │
-    ├── app/
-    │   ├── layout.tsx
-    │   ├── page.tsx
-    │   ├── globals.css
-    │   ├── favicon.ico
-    │   └── reader/
-    │       └── page.tsx
-    │
-    ├── components/
-    │   ├── BookViewer.tsx
-    │   ├── ChatPanel.tsx
-    │   ├── ReaderLayout.tsx
-    │   ├── TextSelectionMenu.tsx
-    │   ├── UploadBook.tsx
-    │   └── ui/
-    │
-    ├── lib/
-    │   └── api.ts
-    │
-    └── public/
-```
+1. **Upload**: User drops a PDF into `UploadBook.tsx` -> Sent to `server.py` (`/upload`).
+2. **Processing**: Backend loads the PDF, splits it into chunks, and builds BM25 and FAISS indices in memory.
+3. **Reading**: Frontend redirects to the reader. `BookViewer.tsx` displays pages and constantly tells the backend what page the user is viewing via `/set_page`.
+4. **Interaction**: 
+   - User highlights text -> `TextSelectionMenu.tsx` allows quick questions.
+   - User types in `ChatPanel.tsx` -> Question is sent via `/ask`.
+5. **Retrieval & Answer**: `server.py` takes the question and the exact page number. `hybrid_search.py` looks at +/- 5 pages around the user's view, finds the most relevant semantic and keyword matches, expands them into whole paragraphs, and passes them to `answer_generator.py`.
+6. **Memory**: The LLM reads the context, past chat history, and the user's question, generates a highly grounded answer, and the response streams back to the frontend chat UI.

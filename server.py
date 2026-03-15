@@ -106,11 +106,13 @@ def ask_question(req: AskRequest):
     embedding = app_state["embedding"]
     llm = app_state["llm"]
 
+    vector_store = app_state["vector_store"]
+
     context_chunks, _, _, _ = hybrid_search(
         query,
         current_page,
         chunks,
-        embedding,
+        vector_store,
         bm25
     )
 
